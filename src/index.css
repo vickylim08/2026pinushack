@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap');
+
+:root {
+  /* Modern Editorial Theme */
+  --font-main: 'Outfit', sans-serif;
+  --font-serif: 'Cinzel', serif;
+
+  /* User Palette
+     #CBD4D5 - Light Gray
+     #615542 - Dark Brown
+     #6B8F8E - Muted Teal
+     #98843E - Antique Gold
+     #7889A4 - Muted Blue
+  */
+
+  --color-bg: #CBD4D5;
+  --color-text: #ffffff;
+  --color-text-dark: #615542;
+
+  --color-primary: #7889A4;
+  /* Muted Blue */
+  --color-secondary: #6B8F8E;
+  /* Muted Teal */
+  --color-accent: #98843E;
+  /* Antique Gold */
+
+  --glass-bg: rgba(97, 85, 66, 0.7);
+  /* Dark Brown tint for glass */
+  --glass-border: rgba(203, 212, 213, 0.2);
+  /* Light Gray border */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  /* overflow: hidden; Removed to allow scrolling */
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+  position: relative;
+}
+
+button {
+  font-family: var(--font-main);
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

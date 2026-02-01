@@ -1,23 +1,20 @@
-import logo from './logo.svg';
 import './App.css';
+import Auth from './Auth';
+import Gallery from './Gallery'; // Import the new Gallery component
+import UploadForm from './UploadForm';
 
 function App() {
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <Gallery />
+      <hr />
+      <details style={{ cursor: 'pointer', maxWidth: '640px', margin: '2em auto', border: '1px solid #eee', padding: '1em', borderRadius: '8px' }}>
+        <summary style={{ fontWeight: 'bold' }}>Admin & Upload Section</summary>
+        <div style={{marginTop: '1em'}}>
+          <Auth />
+          <UploadForm />
+        </div>
+      </details>
     </div>
   );
 }

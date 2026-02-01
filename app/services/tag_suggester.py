@@ -27,7 +27,6 @@ def _fetch_image_bytes(image_url: str, max_bytes: int = 8_000_000) -> bytes:
     return data
 
 def suggest_tags_from_image(payload: Dict[str, Any]) -> Dict[str, Any]:
-    # Use Featherless (Text-only for now)
     api_key = os.getenv("FEATHERLESS_API_KEY")
     if not api_key:
         raise RuntimeError("Missing FEATHERLESS_API_KEY")
@@ -37,17 +36,14 @@ def suggest_tags_from_image(payload: Dict[str, Any]) -> Dict[str, Any]:
     medium = payload.get("medium")
     year = payload.get("year")
     size = payload.get("size") or {}
-    
-    # NOTE: Qwen/Qwen3-0.6B is text-only, so we ignore imageUrl/base64 for now.
-    # We will generate tags based on the metadata.
 
     size_str = ""
     if isinstance(size, dict) and "width" in size and "height" in size:
         size_str = f'{size.get("width")}×{size.get("height")}{size.get("unit","")}'
 
     prompt_text = f"""
-You are helping an ARTIST list a physical artwork.
-Generate relevant tags based on the description below.
+You are a Metadata Standardization Assistant.
+Your job is to classify this artwork into our database's STRICT taxonomy.
 
 Artwork Info:
 - Title: {title}
@@ -56,26 +52,28 @@ Artwork Info:
 - Size: {size_str}
 - Story/Description: {story}
 
-Allowed tags (choose ONLY from these lists):
-- Style: {STYLE_TAGS}
-- Mood: {MOOD_TAGS}
-- Colors: {COLOR_TAGS}
-- Themes: {THEME_TAGS}
-- Space: {SPACE_TAGS}
+DATABASE TAXONOMY (You command STRICTLY select from these lists):
+- Style Options: {json.dumps(STYLE_TAGS)}
+- Mood Options: {json.dumps(MOOD_TAGS)}
+- Color Options: {json.dumps(COLOR_TAGS)}
+- Theme Options: {json.dumps(THEME_TAGS)}
+- Space Options: {json.dumps(SPACE_TAGS)}
 
-Return STRICT JSON only:
+Instructions:
+1. Analyze the artwork info.
+2. Select the most relevant tags from the lists above.
+3. DO NOT invent new tags. If "Ocean" is not in the list, look for "Nature" or similar.
+4. If no tag fits perfectly, pick the closest one.
+
+Return STRICT JSON:
 {{
-  "style": ["1-3 tags"],
-  "mood": ["1-3 tags"],
-  "colors": ["1-3 tags (infer from medium/title if possible)"],
-  "themes": ["1-3 tags"],
-  "space": ["1-3 tags"],
-  "explanation": "1 short sentence explaining why."
+  "style": ["..."],
+  "mood": ["..."],
+  "colors": ["..."],
+  "themes": ["..."],
+  "space": ["..."],
+  "explanation": "Why these standard tags match."
 }}
-
-Rules:
-- Do not make up random things, stick to the vibe of the title/story.
-- If story is empty, infer from title and medium.
 """
 
     # Featherless client
@@ -89,26 +87,39 @@ Rules:
         resp = client.chat.completions.create(
             model="Qwen/Qwen3-0.6B",
             messages=[
-                {"role": "system", "content": "You are a helpful tagging assistant. Output valid JSON."},
+                {"role": "system", "content": "You are a strict data classifier. Output valid JSON."},
                 {"role": "user", "content": prompt_text}
             ],
-            temperature=0.3,
+            temperature=0.1,  # Lower temperature for stricter adherence
         )
         out_text = resp.choices[0].message.content
         result = _extract_json(out_text)
     except Exception as e:
         print(f"Tag Suggestion Error: {e}")
-        # Return empty structure on failure
         return {
             "style": [], "mood": [], "colors": [], "themes": [], "space": [],
             "explanation": "Could not generate tags (AI Error)."
         }
 
-    # Basic validation
-    for k in ["style", "mood", "colors", "themes", "space"]:
-        if k not in result or not isinstance(result[k], list):
-            result[k] = []
+    # STRICT VALIDATION: Filter out any hallucinated tags
+    def filter_tags(generated_list, allowed_list):
+        if not isinstance(generated_list, list):
+            return []
+        # Case-insensitive match, return the official casing
+        allowed_lower = {t.lower(): t for t in allowed_list}
+        valid = []
+        for item in generated_list:
+            if isinstance(item, str) and item.lower() in allowed_lower:
+                valid.append(allowed_lower[item.lower()])
+        return valid
+
+    result["style"] = filter_tags(result.get("style"), STYLE_TAGS)
+    result["mood"] = filter_tags(result.get("mood"), MOOD_TAGS)
+    result["colors"] = filter_tags(result.get("colors"), COLOR_TAGS)
+    result["themes"] = filter_tags(result.get("themes"), THEME_TAGS)
+    result["space"] = filter_tags(result.get("space"), SPACE_TAGS)
+
     if "explanation" not in result:
-        result["explanation"] = "Generated from metadata."
+        result["explanation"] = "Mapped to database standards."
 
     return result

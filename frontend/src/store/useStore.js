@@ -1,65 +1,29 @@
 import { create } from 'zustand'
-
-// Initial Mock Data
-const INITIAL_ARTWORKS = [
-  {
-    id: 1,
-    url: '/src/assets/textures/art1.png',
-    title: 'Chromatic Chaos',
-    description: 'An explosion of raw emotion and color.',
-    medium: 'Oil on Canvas',
-    dimensions: '120x80cm',
-    price: '$4,500',
-    tags: ['abstract', 'intense'],
-    position: [0, 2, -4.9],
-    rotation: [0, 0, 0]
-  },
-  {
-    id: 2,
-    url: '/src/assets/textures/art2.png',
-    title: 'Misty Morning',
-    description: 'Silence captured in visual form.',
-    medium: 'Digital Print',
-    dimensions: '100x100cm',
-    price: '$2,200',
-    tags: ['realistic', 'calm'],
-    position: [-4.9, 2, 0],
-    rotation: [0, Math.PI / 2, 0]
-  },
-  {
-    id: 3,
-    url: '/src/assets/textures/art3.png',
-    title: 'Neon Dreams',
-    description: 'The future that never was.',
-    medium: '3D Render',
-    dimensions: '1920x1080px',
-    price: '$3,000',
-    tags: ['abstract', 'neon'],
-    position: [4.9, 2, 0],
-    rotation: [0, -Math.PI / 2, 0]
-  },
-  {
-    id: 4,
-    url: '/src/assets/textures/art1.png',
-    title: 'Echoes of Color',
-    description: 'A variation on the theme reflecting the chaos within.',
-    medium: 'Oil on Canvas',
-    dimensions: '50x50cm',
-    price: '$1,200',
-    tags: ['abstract', 'intense'],
-    position: [0, 2, 4.9],
-    rotation: [0, Math.PI, 0]
-  },
-]
+import { db } from '../firebase-config'
+import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore'
 
 export const useStore = create((set) => ({
-  artworks: INITIAL_ARTWORKS,
+  artworks: [],
   preferences: {
-    tags: [], // ['calm', 'abstract']
+    tags: [],
   },
   favorites: [],
   orders: [],
   currentArtwork: null,
+  loading: true,
+
+  // Real-time subscription to Firestore
+  fetchArtworks: () => {
+    const q = query(collection(db, "artworks"), orderBy("id", "desc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const arts = [];
+        querySnapshot.forEach((doc) => {
+            arts.push({ ...doc.data(), firestoreId: doc.id });
+        });
+        set({ artworks: arts, loading: false });
+    });
+    return unsubscribe;
+  },
 
   addOrder: (artwork) => set((state) => ({
     orders: [...state.orders, { ...artwork, orderId: Date.now(), orderDate: new Date().toLocaleDateString() }]
@@ -69,26 +33,25 @@ export const useStore = create((set) => ({
     preferences: { ...state.preferences, tags }
   })),
 
-  addArtwork: (artwork) => set((state) => {
-    // Basic slot finding logic (very simple for MVP)
-    const existingCount = state.artworks.length;
-    // Define a few fixed slots if not provided (just recycling positions for demo)
-    const defaultPosition = [0, 2, -4.8 + (existingCount * 0.1)] // Just slight offset to prevent z-fighting if same slot
-
-    // Better: Replace a slot if we are just testing, or append.
-    // For this MVP, let's just append and let the user see it if they look closely or we overwrite the last one?
-    // Let's actually just PREPEND it so it shows up in the "Main" slot or adjacent.
-
-    const newArt = {
-      ...artwork,
-      id: Date.now(),
-      position: [2, 2, -4.9], // Hardcoded "New Arrival" spot for demo
-      rotation: [0, 0, 0],
-      isUserUploaded: true
+  // Save to Firestore
+  addArtwork: async (artwork) => {
+    try {
+        // We use the same position logic or randomize it for now
+        const newArt = {
+            ...artwork,
+            id: Date.now(), // Keep numeric ID for existing logic, or use firestore ID
+            position: [Math.random() * 4 - 2, 2, Math.random() * 4 - 2], // Random spot for now
+            rotation: [0, Math.random() * Math.PI, 0],
+            isUserUploaded: true,
+            createdAt: new Date().toISOString()
+        }
+        await addDoc(collection(db, "artworks"), newArt);
+        // No need to set state manually, onSnapshot will pick it up
+    } catch (e) {
+        console.error("Error adding document: ", e);
+        alert("Failed to save artwork to cloud.");
     }
-
-    return { artworks: [...state.artworks, newArt] }
-  }),
+  },
 
   toggleFavorite: (id) => set((state) => {
     const isFav = state.favorites.includes(id)

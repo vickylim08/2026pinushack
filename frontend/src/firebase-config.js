@@ -13,11 +13,14 @@ const firebaseConfig = {
   appId: "1:703706744884:web:7db901b40c0d6597126261"
 };
 
+import { getAuth } from "firebase/auth";
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Get a reference to the database service and storage service
 const db = getFirestore(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 
-export { db, storage };
+export { db, storage, auth };

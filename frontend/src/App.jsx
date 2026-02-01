@@ -7,7 +7,17 @@ import Profile from './pages/Profile.jsx'
 import Quiz from './components/Quiz.jsx'
 import EditProfile from './pages/EditProfile.jsx' // Added this import
 
+import { useEffect } from 'react'
+import { useStore } from './store/useStore'
+
 function App() {
+  const fetchArtworks = useStore((state) => state.fetchArtworks)
+
+  useEffect(() => {
+    const unsubscribe = fetchArtworks()
+    return () => unsubscribe()
+  }, [fetchArtworks])
+
   return (
     <BrowserRouter>
       <Routes>

@@ -375,8 +375,12 @@ export default function GalleryScene() {
   const artworks = [...allArtworks]
     .sort((a, b) => {
       // Calculate match score
-      const aMatch = a.tags ? a.tags.filter(tag => userTags.includes(tag.toLowerCase())).length : 0
-      const bMatch = b.tags ? b.tags.filter(tag => userTags.includes(tag.toLowerCase())).length : 0
+      // Calculate match score
+      const aTags = Array.isArray(a.tags) ? a.tags : (typeof a.tags === 'string' ? a.tags.split(',') : [])
+      const bTags = Array.isArray(b.tags) ? b.tags : (typeof b.tags === 'string' ? b.tags.split(',') : [])
+      
+      const aMatch = aTags.filter(tag => userTags.includes(tag.trim().toLowerCase())).length
+      const bMatch = bTags.filter(tag => userTags.includes(tag.trim().toLowerCase())).length
 
       // Sort desc by match
       if (bMatch !== aMatch) return bMatch - aMatch

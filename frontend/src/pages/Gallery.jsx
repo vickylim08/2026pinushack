@@ -1,24 +1,76 @@
 import { Canvas } from '@react-three/fiber'
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import GalleryScene from '../canvas/GalleryScene'
 import { useStore } from '../store/useStore'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 
+import { aiService } from '../services/api' // Import AI Service
+
 export default function Gallery() {
     const currentArtwork = useStore((state) => state.currentArtwork)
     const setCurrentArtwork = useStore((state) => state.setCurrentArtwork)
     const favorites = useStore((state) => state.favorites)
+    const preferences = useStore((state) => state.preferences) // Get user preferences
     const orders = useStore((state) => state.orders)
     const addOrder = useStore((state) => state.addOrder)
     const navigate = useNavigate()
 
     const isPurchased = currentArtwork && orders.some(o => o.id === currentArtwork.id)
 
-    const getAIExplanation = (art) => {
-        if (!art) return "Welcome to the Victorian Wing. I am your AI Curator. Select any artwork to learn about its soul and secrets."
-        return `${art.title} is a remarkable example of ${art.medium}. Our AI analysis suggests it embodies the transition from classical structure to modern chaos. The usage of ${art.tags?.[0] || 'vibrant'} tones indicates a deep emotional resonance typical of the late 19th-century avant-garde.`
-    }
+    // AI Buddy State
+    const [explanation, setExplanation] = useState("")
+    const [aiStatus, setAiStatus] = useState("idle") // idle, loading, success, error
+
+    // Fetch AI Explanation when artwork opens
+    useEffect(() => {
+        if (currentArtwork) {
+            setAiStatus('loading');
+            
+            // MAP FRONTEND DATA TO BACKEND MODELS
+            const userProfile = {
+                style: preferences.tags || ["Modern"],
+                mood: ["Calm", "Bold"],
+                colors: ["Blue", "Gold"],
+                themes: ["Abstract"],
+                budget: { min: 100, max: 10000 },
+                space: "Living Room"
+            };
+
+            const backendArtwork = {
+                id: String(currentArtwork.id),
+                title: currentArtwork.title || "Untitled",
+                artistName: currentArtwork.artist || "Unknown Artist",
+                year: parseInt(currentArtwork.year) || 2024,
+                price: parseFloat(String(currentArtwork.price).replace(/[^0-9.]/g, '')) || 0,
+                currency: "USD",
+                size: { 
+                    width: parseFloat(currentArtwork.width) || 100, 
+                    height: parseFloat(currentArtwork.height) || 100, 
+                    unit: "cm" 
+                },
+                tags: Array.isArray(currentArtwork.tags) ? currentArtwork.tags : (currentArtwork.tags ? [currentArtwork.tags] : []),
+                story: currentArtwork.description || "No description provided.",
+                imageUrl: currentArtwork.url || "",
+                audioStoryUrl: ""
+            };
+            
+            aiService.explainArtwork(userProfile, backendArtwork)
+                .then(data => {
+                    setExplanation(data.summary);
+                    setAiStatus('success');
+                })
+                .catch(err => {
+                    console.error("AI Buddy Error:", err);
+                    setExplanation("I'm having trouble connecting to the museum database. Please try again.");
+                    setAiStatus('error');
+                });
+        } else {
+            // Reset when closed
+            setAiStatus('idle');
+            setExplanation("");
+        }
+    }, [currentArtwork, preferences.tags]);
 
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#fcfcfc', position: 'relative' }}>
@@ -153,11 +205,11 @@ export default function Gallery() {
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                        <div style={{ background: '#98843E', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 'bold' }}>AI CURATOR</div>
+                                        <div style={{ background: '#98843E', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 'bold' }}>AI BUDDY</div>
                                         <div style={{ height: '1px', flex: 1, background: 'rgba(152, 132, 62, 0.2)' }} />
                                     </div>
                                     <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.6, fontStyle: 'italic', color: 'rgba(0,0,0,0.8)' }}>
-                                        "{getAIExplanation(currentArtwork)}"
+                                        {aiStatus === 'loading' ? "Thinking..." : `"${explanation}"`}
                                     </p>
                                 </motion.div>
 

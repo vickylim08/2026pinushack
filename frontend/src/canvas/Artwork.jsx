@@ -5,7 +5,14 @@ import { useCursor } from '@react-three/drei'
 import * as THREE from 'three'
 
 export default function Artwork({ position, rotation, url, id, title, description, audio, ...props }) {
-  const texture = useTexture(url)
+  // Safe URL handling
+  // Filter out blob: URLs which are likely dead links from previous sessions
+  const isValidUrl = url && url.length > 5 && !url.startsWith('blob:')
+  const safeUrl = isValidUrl ? url : 'https://placehold.co/600x400/png'
+  
+  // Use texture (suspend if loading)
+  const texture = useTexture(safeUrl)
+
   const [hovered, setHover] = useState(false)
   const setCurrentArtwork = useStore((state) => state.setCurrentArtwork)
   const mesh = useRef()

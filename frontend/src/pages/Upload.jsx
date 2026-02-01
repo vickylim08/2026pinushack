@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { motion } from 'framer-motion'
+import { aiService } from '../services/api' // Import AI Service
+import { storage, auth } from '../firebase-config'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { signInAnonymously } from 'firebase/auth'
+import { useEffect } from 'react'
 
 export default function Upload() {
   const navigate = useNavigate()
@@ -20,6 +25,11 @@ export default function Upload() {
     image: null
   })
   const [preview, setPreview] = useState(null)
+  const [file, setFile] = useState(null) // PRESERVE THE RAW FILE FOR UPLOAD
+
+  useEffect(() => {
+    signInAnonymously(auth).catch((error) => console.error("Auth Error:", error));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -34,8 +44,49 @@ export default function Upload() {
         return
       }
       const url = URL.createObjectURL(file)
-      setFormData(prev => ({ ...prev, image: url }))
+      setFormData(prev => ({ ...prev, image: url })) // Keep for preview
       setPreview(url)
+      setFile(file) // Storing the actual file
+    }
+  }
+
+  const [aiStatus, setAiStatus] = useState('')
+
+  const handleSuggestTags = async () => {
+    if (!formData.title && !formData.description && !formData.medium) {
+        alert("Please fill in Title, Description, or Medium first!")
+        return
+    }
+    setAiStatus('thinking')
+    try {
+        const payload = {
+            title: formData.title,
+            story: formData.description || "", // Default to empty string
+            medium: formData.medium || "Unknown", // Default to Unknown to avoid null
+            year: formData.year ? parseInt(formData.year) : 2024,
+            size: { 
+                width: formData.width ? parseInt(formData.width) : 0, 
+                height: formData.height ? parseInt(formData.height) : 0, 
+                unit: 'cm' 
+            }
+        }
+        console.log("Sending Payload:", payload); // Debug log
+        const result = await aiService.suggestTags(payload)
+        
+        // Collect all tags
+        const allTags = [
+            ...(result.style || []),
+            ...(result.mood || []),
+            ...(result.themes || []),
+            ...(result.colors || [])
+        ]
+        
+        // Update tags field (comma separated)
+        setFormData(prev => ({ ...prev, tags: allTags.join(', ') }))
+        setAiStatus('done')
+    } catch (error) {
+        console.error("AI Error:", error)
+        setAiStatus('error')
     }
   }
 
@@ -67,10 +118,27 @@ export default function Upload() {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Status indicator (rudimentary)
+    const btn = e.target.querySelector('button[type="submit"]')
+    if(btn) btn.innerText = "Uploading..."
+
     // Add default mock image if none selected for easier testing
-    const finalImage = formData.image || 'https://via.placeholder.com/500' // rudimentary fallback
+    let finalImage = formData.image || 'https://via.placeholder.com/500' // rudimentary fallback
+
+    // UPLOAD TO LOCAL BACKEND (Bypass Google Cloud CORS)
+    if (file) {
+        try {
+            // Upload to Python Backend
+            finalImage = await aiService.uploadImage(file);
+            console.log("Uploaded Image URL:", finalImage);
+        } catch (err) {
+            console.error("Upload Failed", err);
+            alert("Image upload failed, using placeholder.");
+        }
+    }
 
     // Format price and dimensions
     const finalPrice = formData.price.startsWith('$') ? formData.price : `$${formData.price}`
@@ -78,7 +146,8 @@ export default function Upload() {
       ? `${formData.width}x${formData.height}cm`
       : formData.dimensions || 'Unknown'
 
-    addArtwork({
+    // Save to Firestore via Store
+    await addArtwork({
       title: formData.title,
       description: formData.description,
       medium: formData.medium,
@@ -267,22 +336,35 @@ export default function Upload() {
           </div>
 
           <div style={inputGroupStyle}>
-            <label style={labelStyle}>Primary Tag (Style)</label>
-            <select
-              required
-              name="tags"
-              value={formData.tags}
-              onChange={handleChange}
-              onKeyDown={(e) => handleInputKeyDown(e)}
-              style={inputStyle}
-            >
-              <option value="abstract">Abstract</option>
-              <option value="realistic">Realistic</option>
-              <option value="calm">Calm</option>
-              <option value="intense">Intense</option>
-              <option value="neon">Neon</option>
-              <option value="portrait">Portrait</option>
-            </select>
+            <label style={labelStyle}>Tags (AI Suggested)</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  required
+                  name="tags"
+                  value={formData.tags}
+                  onChange={handleChange}
+                  onKeyDown={(e) => handleInputKeyDown(e)}
+                  style={inputStyle}
+                  placeholder="Abstract, Calm, Blue..."
+                />
+                <button 
+                    type="button" 
+                    onClick={handleSuggestTags}
+                    disabled={aiStatus === 'thinking'}
+                    style={{
+                        padding: '0 1.5rem',
+                        borderRadius: '12px',
+                        border: '1px solid var(--color-text-dark)',
+                        background: aiStatus === 'thinking' ? '#ccc' : 'transparent',
+                        cursor: aiStatus === 'thinking' ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap'
+                    }}
+                >
+                    {aiStatus === 'thinking' ? 'Thinking...' : '✨ Auto-Tag'}
+                </button>
+            </div>
           </div>
 
           <div style={inputGroupStyle}>
